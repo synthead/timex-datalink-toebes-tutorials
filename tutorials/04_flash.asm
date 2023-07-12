@@ -1,0 +1,135 @@
+;Name: Flash
+;Version: FLASH
+;Description: by John A. Toebes, VIII
+;This is a simple number update/flash program
+;
+;TIP:  Download your watch faster:  Download a WristApp once, then do not send it again.  It stays in the watch!
+;HelpFile: watchapp.hlp
+;HelpTopic: 106
+            INCLUDE "WRISTAPP.I"
+;
+; (1) Program specific constants
+;
+FLAGBYTE        EQU     $61
+;   Bit 1 indicates that we need to clear the display first
+;
+CURVAL  EQU   $62       ; The current value we are displaying
+;
+; (2) System entry point vectors
+;
+START   EQU     *
+L0110:  jmp     MAIN    ; The main entry point - WRIST_MAIN
+L0113:  rts             ; Called when we are suspended for any reason - WRIST_SUSPEND
+        nop
+        nop
+L0116:  rts             ; Called to handle any timers or time events - WRIST_DOTIC
+        nop
+        nop
+L0119:  rts             ; Called when the COMM app starts and we have timers pending - WRIST_INCOMM
+        nop
+        nop
+L011c:  rts             ; Called when the COMM app loads new data - WRIST_NEWDATA
+        nop
+        nop
+
+L011f:  lda     STATETAB,X ; The state table get routine - WRIST_GETSTATE
+        rts
+
+L0123:  jmp     HANDLE_STATE0
+        db      STATETAB-STATETAB
+;
+; (3) Program strings
+S6_FLASH:       timex6  "FLASH "
+S6_SAMPLE:      timex6  "SAMPLE"
+;
+; (4) State Table
+;
+STATETAB:
+        db      0
+        db      EVT_ENTER,TIM_2_8TIC,0          ; Initial state
+        db      EVT_TIMER2,TIM_ONCE,0           ; The timer from the enter event
+        db      EVT_RESUME,TIM_ONCE,0           ; Resume from a nested app
+        db      EVT_MODE,TIM_ONCE,$FF           ; Mode button
+        db      EVT_DNANY4,TIM_ONCE,0           ; NEXT, PREV, SET, MODE button pressed
+        db      EVT_UPANY4,TIM_ONCE,0           ; NEXT, PREV, SET, MODE button released
+        db      EVT_END
+;
+; (5) State Table 0 Handler
+; This is called to process the state events.
+; We see ENTER, TIMER2, RESUME, DNANY4 and UPANY4 events
+;
+HANDLE_STATE0:
+        bset    1,APP_FLAGS                       ; Indicate that we can be suspended
+        lda     BTNSTATE                        ; Get the event
+        cmp     #EVT_DNANY4                     ; Did they press a button?
+        bne     CHKENTER                        ; No, pass on to see what else there might be
+        lda     BTN_PRESSED                     ; Let's see what the button they pressed was
+        cmp     #EVT_PREV                       ; How about the PREV button
+        beq     DO_PREV                         ; handle it
+        cmp     #EVT_NEXT                       ; Maybe the NEXT button?
+        beq     DO_NEXT                         ; Deal with it!
+        cmp     #EVT_SET                        ; Perhaps the SET button
+        beq     DO_SET                          ; If so, handle it
+        ; In reality, we can't reach here since we handled all three buttons
+        ; in the above code (the MODE button is handled before we get here and the
+        ; GLOW button doesn't send in an event for this).  We can just fall through
+        ; and take whatever we get from it.
+CHKENTER
+        cmp     #EVT_ENTER                      ; Is this our initial entry?
+        bne     REFRESH
+;
+; This is the initial event for starting us
+;
+DO_ENTER    
+        bclr    1,FLAGBYTE                      ; Indicate that we need to clear the display
+        jsr     CLEARSYM                        ; Clear the display
+        lda     #S6_FLASH-START
+        jsr     PUT6TOP
+        lda     #S6_SAMPLE-START
+        jsr     PUT6MID
+        lda     #SYS8_MODE
+        jmp     PUTMSGBOT
+;
+; (6) Our real working code...
+
+DO_NEXT
+        bset    0,SYSFLAGS      ; Mark our update direction as up
+        bra     DO_UPD
+DO_PREV
+        bclr    0,SYSFLAGS      ; Mark our update direction as down
+DO_UPD
+        clra
+        sta     UPDATE_MIN      ; Our low end is 0
+        lda     #99
+        sta     UPDATE_MAX      ; and the high end is 99 (the max since this is a 2 digit value)
+        ldx     #CURVAL         ; Point to our value to be updated
+        lda     #UPD_MID34      ; Request updating in the middle of the display
+        jsr     START_UPDATEP   ; And prepare the update routine
+        bset    4,BTNFLAGS      ; Mark that the update is now pending
+        bclr    1,FLAGBYTE
+        lda     #SYS8_SET_MODE
+        jmp     PUTMSGBOT
+
+DO_SET
+        clr     CURVAL          ; When they hit the set button, we just clear to zero
+SHOWVAL
+        brset   1,FLAGBYTE,NOCLEAR ; Do we need to clear the display first?
+REFRESH
+        jsr     CLEARALL        ; Yes, clear everything before we start
+        bset    1,FLAGBYTE      ; And remember that we have already done that
+NOCLEAR
+        bclr    7,BTNFLAGS      ; Turn off any update routine that might be pending
+        ldx     #CURVAL
+        lda     #BLINK_MID34
+        jsr     START_BLINKP
+        bset    2,BTNFLAGS      ; Mark a blink routine as pending
+        rts
+;
+; (7) This is the main initialization routine which is called when we first get the app into memory
+;
+MAIN:
+        lda     #$c0                            ; We want button beeps and to indicate that we have been loaded
+        sta     WRISTAPP_FLAGS
+        clr     FLAGBYTE                        ; start with a clean slate
+        clr     CURVAL
+        rts

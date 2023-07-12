@@ -1,0 +1,232 @@
+;Name: Password
+;Version: PASSWD
+;Description: This is a simple number update/passwd program
+;by John A. Toebes, VIII
+;
+;TIP:  Download your watch faster:  Download a WristApp once, then do not send it again.  It stays in the watch!
+;HelpFile: watchapp.hlp
+;HelpTopic: 106
+            INCLUDE "WRISTAPP.I"
+;
+; (1) Program specific constants
+;
+FLAGBYTE        EQU     $61
+;   Bit 0 indicates which digit we are working on (SET=SECOND DIGIT)
+;   Bit 1 indicates that we need to clear the display first
+;
+DIGIT0  EQU     $62     ; The first digit to enter
+DIGIT1  EQU     $63     ; The second digit to enter
+SYSTEMP0        EQU     $A0
+SYSTEMP1        EQU     $A1
+;
+; (2) System entry point vectors
+;
+START   EQU     *
+L0110:  jmp     MAIN    ; The main entry point - WRIST_MAIN
+L0113:  rts             ; Called when we are suspended for any reason - WRIST_SUSPEND
+        nop
+        nop
+L0116:  rts             ; Called to handle any timers or time events - WRIST_DOTIC
+        nop
+        nop
+L0119:  rts             ; Called when the COMM app starts and we have timers pending - WRIST_INCOMM
+        nop
+        nop
+L011c:  rts             ; Called when the COMM app loads new data - WRIST_NEWDATA
+        nop
+        nop
+
+L011f:  lda     STATETAB0,X ; The state table get routine - WRIST_GETSTATE
+        rts
+
+L0123:  jmp     HANDLE_STATE0
+        db      STATETAB0-STATETAB0
+L0127:  jmp     HANDLE_STATE1
+        db      STATETAB1-STATETAB0
+;
+; (3) Program strings
+S6_TOEBES:      timex6  "TOEBES"
+S6_SAMPLE:      timex6  "SAMPLE"
+S6_PRESS:       timex6  "PRESS "
+S8_PASSWORD:    timex   "PASSWORD"
+SX_MESSAGE      timex   "BY JOHN A. TOEBES, VIII"
+                db      SEPARATOR
+;
+; (4) State Table
+;
+STATETAB0:
+        db      0
+        db      EVT_ENTER,TIM_2_8TIC,0          ; Initial state
+        db      EVT_TIMER2,TIM_ONCE,0           ; The timer from the enter event
+        db      EVT_RESUME,TIM_ONCE,0           ; Resume from a nested app
+        db      EVT_MODE,TIM_ONCE,$FF           ; Mode button
+        db      EVT_SET,TIM_ONCE,1              ; SET button pressed
+        db      EVT_END
+
+STATETAB1:
+        db      1
+        db      EVT_RESUME,TIM_ONCE,1           ; Resume from a nested app
+        db      EVT_DNANY4,TIM_ONCE,1           ; NEXT, PREV, SET, MODE button pressed
+        db      EVT_UPANY4,TIM_ONCE,1           ; NEXT, PREV, SET, MODE button released
+        db      EVT_USER2,TIM_ONCE,0
+        db      EVT_END
+;
+; (5) State Table 0 Handler
+; This is called to process the state events.
+; We see ENTER, TIMER2, and RESUME events
+;
+HANDLE_STATE0:
+        bset    1,APP_FLAGS                     ; Indicate that we can be suspended
+        lda     BTNSTATE                        ; Get the event
+        cmp     #EVT_ENTER                      ; Is this our initial entry?
+        bne     REFRESH0
+;
+; This is the initial event for starting us
+;
+DO_ENTER    
+        bclr    1,FLAGBYTE                      ; Indicate that we need to clear the display
+        jsr     CLEARSYM                        ; Clear the display
+        lda     #S6_TOEBES-START
+        jsr     PUT6TOP
+        lda     #S6_SAMPLE-START
+        jsr     PUT6MID
+        lda     #S8_PASSWORD
+        jmp     BANNER8
+;
+; We come here for a RESUME or TIMER2 event.  For this we want to reset the display
+;
+REFRESH0
+        brset   1,FLAGBYTE,NOCLEAR0             ; Do we need to clear the display first?
+        bset    1,FLAGBYTE
+        jsr     CLEARSYM
+NOCLEAR0
+        lda     #S6_PRESS-START
+        jsr     PUT6TOP
+        lda     #SYS6_SET
+        jsr     PUTMSG2
+        lda     #SX_MESSAGE-START
+        jmp     SETUP_SCROLL
+;
+; (6) State Table 1 Handler
+; This is called to process the state events.
+; We see SET, RESUME, DNANY4, and UPANY4 events
+;
+HANDLE_STATE1:
+        bset    1,APP_FLAGS                     ; Indicate that we can be suspended
+        lda     BTNSTATE                        ; Get the event
+        cmp     #EVT_UPANY4
+        beq     REFRESH
+        cmp     #EVT_DNANY4                     ; Is this our initial entry?
+        bne     FORCEFRESH
+        lda     BTN_PRESSED                     ; Let's see what the button they pressed was
+        cmp     #EVT_PREV                       ; How about the PREV button
+        beq     DO_PREV                         ; handle it
+        cmp     #EVT_NEXT                       ; Maybe the NEXT button?
+        beq     DO_NEXT                         ; Deal with it!
+        cmp     #EVT_MODE                       ; Perhaps the MODE button
+        beq     DO_MODE                         ; If so, handle it
+        ; It must be the set button, so take us out of this state
+        lda     #EVT_USER2
+        jmp     POSTEVENT
+;
+; (7) Our real working code...
+DO_NEXT
+        bset    0,SYSFLAGS                      ; Mark our update direction as up
+        bra     DO_UPD
+DO_PREV
+        bclr    0,SYSFLAGS                      ; Mark our update direction as down
+DO_UPD
+        clra
+        sta     UPDATE_MIN                      ; Our low end is 0
+        lda     #99
+        sta     UPDATE_MAX                      ; and the high end is 99 (the max since this is a 2 digit value)
+        brset   0,FLAGBYTE,UPD1
+        ldx     DIGIT1
+        jsr     FMTXLEAD0
+        jsr     PUTMID34
+        ldx     #DIGIT0                         ; Point to our value to be updated
+        lda     #UPD_MID12                      ; Request updating in the middle of the display
+        bra     UPD2
+UPD1
+        ldx     DIGIT0
+        jsr     FMTXLEAD0
+        jsr     PUTMID12
+        ldx     #DIGIT1
+        lda     #UPD_MID34
+UPD2
+        jsr     START_UPDATEP   ; And prepare the update routine
+        bset    4,BTNFLAGS      ; Mark that the update is now pending
+        bclr    1,FLAGBYTE
+        lda     #SYS8_SET_MODE
+        jmp     PUTMSGBOT
+
+DO_MODE
+        lda     FLAGBYTE
+        eor     #1
+        sta     FLAGBYTE
+
+REFRESH
+        brset   1,FLAGBYTE,NOCLEAR ; Do we need to clear the display first?
+FORCEFRESH
+        jsr     CLEARALL        ; Yes, clear everything before we start
+        bset    1,FLAGBYTE      ; And remember that we have already done that
+NOCLEAR
+        bclr    7,BTNFLAGS      ; Turn off any update routine that might be pending
+        brset   0,FLAGBYTE,SET1
+        ldx     DIGIT1
+        jsr     FMTXLEAD0
+        jsr     PUTMID34
+        ldx     #DIGIT0
+        lda     #BLINK_MID12
+        bra     SET2
+SET1
+        ldx     DIGIT0
+        jsr     FMTXLEAD0
+        jsr     PUTMID12
+        ldx     #DIGIT1
+        lda     #BLINK_MID34
+SET2
+        jsr     START_BLINKP
+        bset    2,BTNFLAGS      ; Mark a blink routine as pending
+        rts
+;
+; (8) This is the main initialization routine which is called when we first get the app into memory
+;
+MAIN:
+        lda     #$c0                            ; We want button beeps and to indicate that we have been loaded
+        sta     WRISTAPP_FLAGS
+        clr     FLAGBYTE                        ; start with a clean slate
+        clr     DIGIT0
+        clr     DIGIT1
+        rts
+;
+; (9) This subroutine is useful for getting a scrolling string on the screen
+;
+;----------------------------------------------------------------------
+; Routine:
+;   SETUP_SCROLL
+; Parameters:
+;   X - Offset from Start to the string
+; Returns:
+;   MSGBUF - contains copied string
+; Purpose
+;   This copies the current string into MSGBUF and calls the appropriate routines
+;   to start it scrolling on the bottom line.
+;----------------------------------------------------------------------
+SETUP_SCROLL:
+        clr     SYSTEMP0
+        sta     SYSTEMP1
+DO_COPY:
+        ldx     SYSTEMP1        ; Get the pointer to the source character
+        lda     START,X         ; Get the character that we are copying
+        ldx     SYSTEMP0        ; Get the pointer to the output buffer
+        sta     MSGBUF,X        ; and store the character away
+        inc     SYSTEMP0        ; Increment our count
+        inc     SYSTEMP1        ; As well as the pointer to the character
+        cmp     #SEPARATOR      ; Did we get a terminator character
+        bne     DO_COPY         ; No, go back for more
+        ;
+        ; The string is now in a buffer terminated by a separator character
+        ;
+        jsr     PUTSCROLLMSG        ; Initialize the scrolling support
+        jmp     SCROLLMSG           ; And tell it to actually start scrolling
