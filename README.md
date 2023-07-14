@@ -11,7 +11,7 @@ it easier to use on the CLI in a platform-agnostic way.
 
 ## Highlighting in Vim
 
-To make ZSM be highlighted correctly in Vim, set the syntax to "asm", like so:
+To make ZSM files be highlighted correctly in Vim, set the syntax to "asm", like so:
 
 ```vimrc
 :syntax=asm
