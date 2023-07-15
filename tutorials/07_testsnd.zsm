@@ -29,7 +29,7 @@ L011c:  rts             ; Called when the COMM app loads new data - WRIST_NEWDAT
         nop
         nop
 
-L011f:  lda     STATETAB0,X ; The state table get routine - WRIST_GETSTATE
+L011f:  lda     TABLE0,X ; The state table get routine - WRIST_GETSTATE
         rts
 
 L0123:  jmp     DOEVENT0
