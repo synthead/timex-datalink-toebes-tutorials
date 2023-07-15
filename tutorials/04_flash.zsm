@@ -46,7 +46,7 @@ S6_SAMPLE:      timex6  "SAMPLE"
 ;
 STATETAB:
         db      0
-        db      EVT_ENTER,TIM_2_8TIC,0          ; Initial state
+        db      EVT_ENTER,TIM2_8TIC,0           ; Initial state
         db      EVT_TIMER2,TIM_ONCE,0           ; The timer from the enter event
         db      EVT_RESUME,TIM_ONCE,0           ; Resume from a nested app
         db      EVT_MODE,TIM_ONCE,$FF           ; Mode button
