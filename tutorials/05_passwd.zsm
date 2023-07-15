@@ -90,7 +90,7 @@ DO_ENTER
         jsr     PUT6TOP
         lda     #S6_SAMPLE-START
         jsr     PUT6MID
-        lda     #S8_PASSWORD
+        lda     #S8_PASSWORD-START
         jmp     BANNER8
 ;
 ; We come here for a RESUME or TIMER2 event.  For this we want to reset the display
