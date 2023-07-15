@@ -73,7 +73,7 @@ HANDLE_STATE0:
         lda     #ROW_T5H
         sta     DISP_ROW
         bset    COL_T5H,DISP_COL
-        jsr     CHECKSTATE              ; Just for fun, check the alarm state
+        bsr     CHECKSTATE              ; Just for fun, check the alarm state
         lda     #S8_TOEBES-START
         jmp     BANNER8
 ;
