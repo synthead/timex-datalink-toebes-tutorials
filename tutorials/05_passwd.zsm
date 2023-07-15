@@ -56,7 +56,7 @@ SX_MESSAGE      timex   "BY JOHN A. TOEBES, VIII"
 ;
 STATETAB0:
         db      0
-        db      EVT_ENTER,TIM_2_8TIC,0          ; Initial state
+        db      EVT_ENTER,TIM2_8TIC,0           ; Initial state
         db      EVT_TIMER2,TIM_ONCE,0           ; The timer from the enter event
         db      EVT_RESUME,TIM_ONCE,0           ; Resume from a nested app
         db      EVT_MODE,TIM_ONCE,$FF           ; Mode button
@@ -90,7 +90,7 @@ DO_ENTER
         jsr     PUT6TOP
         lda     #S6_SAMPLE-START
         jsr     PUT6MID
-        lda     #S8_PASSWORD
+        lda     #S8_PASSWORD-START
         jmp     BANNER8
 ;
 ; We come here for a RESUME or TIMER2 event.  For this we want to reset the display
